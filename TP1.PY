@@ -3,17 +3,36 @@ from tkinter import simpledialog
 import math
 
 # Configurações de tela
-WIDTH, HEIGHT = 800, 800
+WIDTH, HEIGHT = 600, 600
 
 
 # Funções de desenho e transformação
 def draw_pixel(canvas, x, y, color="red"):
     canvas.create_line(x, y, x + 1, y, fill=color)
     
-    
-def draw_line(canvas, x1, y1, x2, y2, color="red"):
-    canvas.create_line(x1, y1, x2, y2, fill=color)
-    
+   
+# Algoritmo de Bresenham para desenhar linhas
+def draw_line_bresenham(canvas, x1, y1, x2, y2, color="red"):
+    dx = abs(x2 - x1)
+    dy = abs(y2 - y1)
+    sx = 1 if x1 < x2 else -1
+    sy = 1 if y1 < y2 else -1
+    err = dx - dy
+
+    while True:
+        draw_pixel(canvas, x1, y1, color)  # Função para desenhar um pixel no canvas
+        if x1 == x2 and y1 == y2:
+            break
+        e2 = 2 * err
+        if e2 > -dy:
+            err -= dy
+            x1 += sx
+        if e2 < dx:
+            err += dx
+            y1 += sy
+   
+   
+   
 # Função para desenhar polígonos com base nos pontos clicados
 def draw_polygon_from_points(canvas, points, color="red"):
     if len(points) > 1:
@@ -37,8 +56,34 @@ def draw_line_dda(canvas, x1, y1, x2, y2, color="red"):
         x += x_inc
         y += y_inc
         
+        
+# Algoritmo de Bresenham para desenhar círculos
 def draw_circle(canvas, xc, yc, r, color="red"):
-    canvas.create_oval(xc - r, yc - r, xc + r, yc + r, outline=color)
+    x = 0
+    y = r
+    d = 3 - 2 * r
+    draw_circle_points(canvas, xc, yc, x, y, color)
+    
+    while y >= x:
+        x += 1
+        if d > 0:
+            y -= 1
+            d = d + 4 * (x - y) + 10
+        else:
+            d = d + 4 * x + 6
+        draw_circle_points(canvas, xc, yc, x, y, color)
+
+# Função auxiliar para desenhar os pontos simétricos do círculo
+def draw_circle_points(canvas, xc, yc, x, y, color):
+    draw_pixel(canvas, xc + x, yc + y, color)  # Ponto 1
+    draw_pixel(canvas, xc - x, yc + y, color)  # Ponto 2
+    draw_pixel(canvas, xc + x, yc - y, color)  # Ponto 3
+    draw_pixel(canvas, xc - x, yc - y, color)  # Ponto 4
+    draw_pixel(canvas, xc + y, yc + x, color)  # Ponto 5
+    draw_pixel(canvas, xc - y, yc + x, color)  # Ponto 6
+    draw_pixel(canvas, xc + y, yc - x, color)  # Ponto 7
+    draw_pixel(canvas, xc - y, yc - x, color)  # Ponto 8
+
 
 def translate(shape, dx, dy):
     if shape["type"] == "line" or shape["type"] == "polygon":
@@ -103,7 +148,7 @@ def redraw_shapes(canvas, shapes):
     canvas.delete("all")  # Limpa o canvas antes de redesenhar
     for shape in shapes:
         if shape["type"] == "line":
-            draw_line(canvas, shape["points"][0][0], shape["points"][0][1],
+            draw_line_bresenham(canvas, shape["points"][0][0], shape["points"][0][1],
                       shape["points"][1][0], shape["points"][1][1], "red")
         elif shape["type"] == "circle":
             draw_circle(canvas, shape["center"][0], shape["center"][1], shape["radius"], "red")
@@ -235,8 +280,8 @@ def create_tkinter_interface():
         nonlocal drawing_line, points, drawing_algorithm
         drawing_line = True
         points = []
-        drawing_algorithm = algorithm
-        
+        drawing_algorithm = algorithm  # Aqui, a variável define qual algoritmo usar
+
         
     def start_drawing_clipping_area():
         nonlocal drawing_clipping_area, clipping_points
@@ -286,7 +331,7 @@ def create_tkinter_interface():
                 
                 
     def on_canvas_click(event):
-        nonlocal drawing_line, drawing_circle, drawing_polygon, points, drawing_clipping_area, clipping_points, clipping_area
+        nonlocal drawing_line, drawing_circle, drawing_polygon, points, drawing_clipping_area, clipping_points, clipping_area, drawing_algorithm
 
         if drawing_clipping_area:
             if len(clipping_points) == 0:
@@ -294,32 +339,24 @@ def create_tkinter_interface():
             elif len(clipping_points) == 1:
                 clipping_points.append((event.x, event.y))
                 finish_clipping_area()
-                
+
         elif drawing_line:
             if len(points) == 0:
                 points.append((event.x, event.y))
             elif len(points) == 1:
                 points.append((event.x, event.y))
+                
+                # Aqui, selecionamos o algoritmo de acordo com a escolha
+                if drawing_algorithm == "dda":
+                    draw_line_dda(canvas, points[0][0], points[0][1], points[1][0], points[1][1])
+                elif drawing_algorithm == "bresenham":
+                    draw_line_bresenham(canvas, points[0][0], points[0][1], points[1][0], points[1][1])
+                
                 shapes.append({"type": "line", "points": points.copy()})
                 redraw_shapes(canvas, shapes)
                 points = []
                 drawing_line = False
 
-        elif drawing_circle:
-            if len(points) == 0:
-                points.append((event.x, event.y))
-            elif len(points) == 1:
-                radius = distance(points[0][0], points[0][1], event.x, event.y)
-                shapes.append({"type": "circle", "center": points[0], "radius": radius})
-                redraw_shapes(canvas, shapes)
-                points = []
-                drawing_circle = False
-
-        elif drawing_polygon:
-            points.append((event.x, event.y))
-            if len(points) > 1:
-                # Desenha uma linha entre o último ponto e o penúltimo ponto clicado
-                draw_line(canvas, points[-2][0], points[-2][1], points[-1][0], points[-1][1])
             
           
     def distance(x1, y1, x2, y2):
